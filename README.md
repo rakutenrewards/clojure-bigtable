@@ -1,6 +1,19 @@
 # clojure-bigtable
 
-A Clojure library designed to ... well, that part is up to you.
+## BigTable summary
+
+BigTable is a key-value store. Unlike Redis, it is backed by durable storage (disks), cheaper per GB, and stores keys in lexicographical order, which unlocks additional access patterns.
+
+Each table in BigTable is a series of *rows* (identified by a single bytestring key). Each row has values for one or more *columns*. Columns belong to *column families*, which are sets of semantically-related columns. A *cell* is the value of a single row at a particular column. For each cell, a timeseries of past values for the cell is stored, with garbage collection policies to periodically clean up old values.
+
+For [simplicity](https://github.com/RakutenReady/clojure-bigtable/pull/1#issuecomment-726970948), this library doesn't use the timeseries feature of cells. Instead, each cell value's timestamp is explicitly set to zero when writing data. If this library is used to read data from a table that wasn't created by this library, it always returns the newest value for each cell.
+
+## Setup
+
+By default, this library will use your local GCP credentials and you can access
+real BigTable instances.
+
+To run tests or learn about BigTable, use the [emulator](https://cloud.google.com/bigtable/docs/emulator).
 
 ## Usage
 
@@ -24,28 +37,11 @@ A Clojure library designed to ... well, that part is up to you.
          "test-table"
          (byte-array [1 2 3])
          ;; The row contents to add. Each key is a column family and column.
-         ;; Each value is a map containing at least :value, and optionally
-         ;; a timestamp (each cell in BigTable is a timeseries).
-         {["column_family_1" "column_1"] {:value (byte-array [ 4 5 6])}}))
+         ;; Each value is a byte array.
+         {["column_family_1" "column_1"] (byte-array [ 4 5 6])}))
 ;; => nil
 
 ;; Read row. Throws if table DNE.
 (deref (core/read-row-async client "test-table" (byte-array [1 2 3])))
-;; => {["column_family_1" "column_1"] {:value (byte-array [ 4 5 6])
-;;                                     :timestamp <something>}}
+;; => {["column_family_1" "column_1"] (byte-array [ 4 5 6])}
 ```
-
-## License
-
-Copyright © 2020 FIXME
-
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
-
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.

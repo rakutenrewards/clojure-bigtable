@@ -7,10 +7,16 @@
    values. Each cell is uniquely identified by a column family and column.
 
    To represent a row in Clojure, we use a map where each key is of the form
-   [column-family-id column-id] and each value is a map of
-   {:value <byte-string> :timestamp <java-time instant>}."
+   [column-family-id column-id] and each value is a byte string.
+
+   The timestamp portion of the BigTable API is ignored by this library. Instead,
+   we use Google's recommended best practices for only allowing one value per
+   cell: https://cloud.google.com/bigtable/docs/gc-latest-value. This decision
+   simplifies the API, reduces our chances of making costly mistakes, and
+   reduces implementation effort. See
+   https://github.com/RakutenReady/clojure-bigtable/pull/1#issuecomment-726970948
+   for more information."
   (:require
-   [java-time]
    [clojure.core.async :as async]
    [medley.core :as medley])
   (:import
@@ -71,7 +77,7 @@
       (map (fn [cell]
              [[(.getFamily cell) (.toStringUtf8 (.getQualifier cell))]
               {:value (into [] (.toByteArray (.getValue cell)))
-               :timestamp (/ (.getTimestamp cell) 1000)}]))
+               :timestamp (.getTimestamp cell)}]))
        (group-by first)
        (medley/map-vals #(map second %))
        ;; TODO: we are throwing away older values of cells on this step.
@@ -84,11 +90,12 @@
        ;; However, we currently don't need historical values. Improve the API
        ;; to allow access to historical values later.
        (medley/map-vals  #(apply max-key :timestamp %))
-       (medley/map-vals #(update % :timestamp java-time/instant))))
+       (medley/map-vals :value)))
 
 (defn read-row-async
   "Returns a future that resolves to the contents of a single row, as a map.
-   Resolves to nil if the row does not exist."
+   Resolves to nil if the row does not exist. The newest value of each cell is
+   returned."
   [^BigtableDataClient client ^String table-id ^bytes row-key]
   {:pre [client (string? table-id)]}
   (future
@@ -116,7 +123,7 @@
                                 (coerce-to-byte-string row-key))
             (.setCell family-id
                       (coerce-to-byte-string column-id)
-                      (* 1000 (System/currentTimeMillis))
+                      0 ;; timestamp
                       (or (maybe-coerce-to-byte-string value) value)))]
     (.mutateRowAsync client row-mutation)))
 
@@ -126,18 +133,14 @@
    , populate the object's set of mutations using the provided specification
    of a row in the row-map format."
   [mutation-api-obj row-map]
-  (doseq [[[family-id column-id] {:keys [value timestamp]}] row-map]
+  (doseq [[[family-id column-id] value] row-map]
     (let [column-id-bytes (coerce-to-byte-string column-id)
-          value-bytes-or-long (or (maybe-coerce-to-byte-string value) value)
-          timestamp-long
-          (if timestamp
-            (* 1000 (java-time/to-millis-from-epoch timestamp))
-            (* 1000 (System/currentTimeMillis)))]
+          value-bytes-or-long (or (maybe-coerce-to-byte-string value) value)]
       (.setCell
        mutation-api-obj
        family-id
        column-id-bytes
-       timestamp-long
+       0 ;; timestamp
        value-bytes-or-long))))
 
 (defn- row-map->RowMutation
@@ -155,12 +158,12 @@
 
 (defn set-row-async
   "Sets the contents of multiple cells in one row. The shape of row should be
-   a map where keys are [column-family-id column-id] and values are maps
-   of {:value <byte-string> :timestamp <java time instant, optional>}
+   a map where keys are [column-family-id column-id] and values are byte
+   strings.
 
-   If :timestamp is specified, the value of the cell will be inserted into
-   the cell's timeseries at the given instant. If it is not specified, the
-   current time will be used.
+   Like all operations in this API, the timestamps of all writes will be set to
+   zero. The ability to specify a timestamp may be added in the future if we
+   need it.
 
    If you want to write multiple rows, this is inefficient. Use set-rows-async
    instead."

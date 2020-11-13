@@ -13,7 +13,7 @@
 (def table "test-table")
 (try
   (admin/create-table admin-client table ["fam1" "fam2"])
-  (catch Exception e nil))
+  (catch Exception _ nil))
 
 ;; TODO: each fixture to delete k1 k2 k3
 
@@ -22,11 +22,11 @@
 (def k3 (byte-array [2 3 4]))
 
 (def example-row
-  {["fam1" "col1"] {:value (byte-array [1 3 3 7])}
-   ["fam1" "col2"] {:value (byte-array [1 3 3])}})
+  {["fam1" "col1"] (byte-array [1 3 3 7])
+   ["fam1" "col2"] (byte-array [1 3 3])})
 
 (def example-row-2
-  (assoc-in example-row [["fam1" "col1"] :value] (byte-array [7 3 3 1])))
+  (assoc example-row ["fam1" "col1"] (byte-array [7 3 3 1])))
 
 (deftest test-row-exists
   (testing "row-exists: DNE"
@@ -48,4 +48,4 @@
         "col1"
         bytes-value)
       (let [row @(core/read-row-async client table k1)]
-        (is (= [7 3 3 1] (into [] (get-in row [["fam1" "col1"] :value]))))))))
+        (is (= [7 3 3 1] (into [] (get row ["fam1" "col1"]))))))))
