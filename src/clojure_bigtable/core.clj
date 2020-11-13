@@ -197,8 +197,11 @@
    a ResponseObserver<Row> that pushes rows onto chan."
   []
   (let [chan (async/chan 100
-                         (map (fn [r] [(.toByteArray (.getKey r))
-                                       (Row->map r)])))]
+                         (map (fn [r]
+                                (if (instance? Throwable r)
+                                   r
+                                   [(.toByteArray (.getKey r))
+                                    (Row->map r)]))))]
     [chan
      (reify ResponseObserver
        (onComplete [this]
