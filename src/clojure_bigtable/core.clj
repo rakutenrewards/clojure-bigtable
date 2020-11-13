@@ -190,7 +190,7 @@
       (.add bulk-mutation
             (coerce-to-byte-string row-key)
             (row-map->Mutation row-map)))
-    (.bulkMutateRowsAsync bulk-mutation)))
+    (.bulkMutateRowsAsync client bulk-mutation)))
 
 (defn- ->row-ResponseObserver
   "Returns [chan, response-observer], where response-observer is
