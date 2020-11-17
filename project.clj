@@ -9,4 +9,12 @@
                                  :username :env/github_actor
                                  :password :env/github_token
                                  :sign-releases false}]]
+  :release-tasks [["vcs" "assert-committed"]
+                  ["change" "version" "leiningen.release/bump-version" "release"]
+                  ["vcs" "commit"]
+                  ["vcs" "tag" "v" "--no-sign"]
+                  ["deploy" "github"]
+                  ["change" "version" "leiningen.release/bump-version"]
+                  ["vcs" "commit"]
+                  ["vcs" "push"]]
   :repl-options {:init-ns clojure-bigtable.core})
