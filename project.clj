@@ -5,4 +5,8 @@
                  [com.google.cloud/google-cloud-bigtable "1.17.1"]
                  [org.clojure/core.async "1.3.610"]
                  [medley "1.3.0"]]
+  :deploy-repositories [["github" {:url "https://maven.pkg.github.com/RakutenReady/clojure-bigtable"
+                                 :username :env/github_actor
+                                 :password :env/github_token
+                                 :sign-releases false}]]
   :repl-options {:init-ns clojure-bigtable.core})
