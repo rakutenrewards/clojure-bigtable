@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [medley.core :as medley]
             [clojure-bigtable.admin :as admin]
-            [clojure-bigtable.core :as core]))
+            [clojure-bigtable.core :as core]
+            [clojure-bigtable.key :as key]))
 
 ;; NOTE: to run tests, set up the emulator on your machine
 ;; https://cloud.google.com/bigtable/docs/emulator
@@ -20,18 +21,27 @@
       (catch Exception _ nil))
     (f)))
 
-;; TODO: each fixture to delete k1 k2 k3
-
 (def k1 (byte-array [1 2 3]))
 (def k2 (byte-array [1 2 4]))
 (def k3 (byte-array [2 3 4]))
 
+(def k-ordered-1 (key/build ["tenant1" "user1" (key/invert 123)]))
+(def k-ordered-2 (key/build ["tenant1" "user1" (key/invert 4569)]))
+(def k-ordered-3 (key/build ["tenant1" "user1" (key/invert 5673)]))
+(def k-ordered-4 (key/build ["tenant1" "user2" (key/invert 4570)]))
+(def k-ordered-5 (key/build ["tenant1" "user2" (key/invert 5000)]))
+
 (use-fixtures :each
   (fn [f]
+    (f)
     @(core/delete-row-async client table k1)
     @(core/delete-row-async client table k2)
     @(core/delete-row-async client table k3)
-    (f)))
+    @(core/delete-row-async client table k-ordered-1)
+    @(core/delete-row-async client table k-ordered-2)
+    @(core/delete-row-async client table k-ordered-3)
+    @(core/delete-row-async client table k-ordered-4)
+    @(core/delete-row-async client table k-ordered-5)))
 
 (def example-row
   {["fam1" "col1"] (byte-array [1 3 3 7])
@@ -89,3 +99,27 @@
     (let [result (core/query-rows client table {:prefix (byte-array [1 2])
                                                 :limit 10})]
       (is (= #{example-row-vecs example-row-2-vecs} (into #{} (map second result)))))))
+
+(deftest test-inverted-numeric-range
+  (testing "Return inverted numeric keys in descending order"
+    @(core/set-rows-async
+      client
+      table
+      [
+       ;; tenant 1, user 1, ascending "timestamp" keys
+       [k-ordered-1 {["fam1" "col1"] (byte-array [4])}]
+       [k-ordered-2 {["fam1" "col1"] (byte-array [5])}]
+       [k-ordered-3 {["fam1" "col1"] (byte-array [6])}]
+
+       ;; tenant 1, user 2, ascending "timestamp" keys, occurring
+       ;; concurrently with tenant 1, user 1's keys.
+       [k-ordered-4 {["fam1" "col1"] (byte-array [1])}]
+       [k-ordered-5 {["fam1" "col1"] (byte-array [2])}]])
+    (let [result (->> (core/query-rows
+                       client
+                       table
+                       {:prefix (key/build ["tenant1" "user1"])
+                        :limit 2})
+                      (map second)
+                      (map #(get % ["fam1" "col1"])))]
+      (is (= [[6] [5]] result)))))
