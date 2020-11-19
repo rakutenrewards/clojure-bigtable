@@ -1,4 +1,4 @@
-(defproject clojure-bigtable "0.1.1"
+(defproject clojure-bigtable "0.2.0-SNAPSHOT"
   :description "Clojure interface to Java BigTable client"
   :url "https://github.com/RakutenReady/clojure-bigtable"
   :dependencies [[org.clojure/clojure "1.10.1"]
